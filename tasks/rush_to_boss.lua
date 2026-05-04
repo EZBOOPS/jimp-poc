@@ -97,14 +97,15 @@ task.Execute = function()
         return
     end
 
-    -- Healing well — beeline if spotted, otherwise head to boss coords
+    -- Healing well — beeline if spotted, otherwise drive to boss coords
     if try_interact_well(player_pos) then return end
 
-    -- Drive toward boss position; game pathfinder handles wall routing
-    -- Batmobile stays paused so it doesn't roam and engage extra mobs
-    BatmobilePlugin.pause(plugin_label)
+    -- Batmobile set_target drives toward boss position with wall avoidance
     task.status = string.format('heading to boss (%.1fm)', player_pos:dist_to(BOSS_POS))
-    pathfinder.request_move(BOSS_POS)
+    BatmobilePlugin.set_target(plugin_label, BOSS_POS, false)
+    BatmobilePlugin.resume(plugin_label)
+    BatmobilePlugin.update(plugin_label)
+    BatmobilePlugin.move(plugin_label)
 end
 
 return task
