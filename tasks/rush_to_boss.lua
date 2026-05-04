@@ -319,8 +319,15 @@ task.Execute = function()
 
     local boss_dist = player_pos:dist_to(BOSS_POS)
     if boss_dist <= BOSS_PATHFIND_DIST then
-        -- Narrow path near boss — pathfinder handles tight corridors better
         BatmobilePlugin.pause(plugin_label)
+        -- Arrived at boss area — force handoff to fight task
+        if boss_dist <= 8.0 then
+            tracker.boss_found    = true
+            tracker.boss_last_pos = BOSS_POS
+            pathfinder.request_move(player_pos)
+            console.print('[GemFarmer] Arrived at boss area — forcing fight handoff')
+            return
+        end
         task.status = string.format('final approach to boss (%.1fm)', boss_dist)
         pathfinder.request_move(BOSS_POS)
     else
