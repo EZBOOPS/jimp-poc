@@ -9,10 +9,18 @@ local WELL_INTERACT_RANGE = 6.0    -- metres — interact with healing well
 local BOSS_POS            = vec3:new(5.0742, 6.3398, 1.9697)
 local EXPLORE_AFTER_STUCK = 8.0    -- seconds of free exploration after each escape pause
 
--- Known wall at ~Y=139: bot must detour left before continuing to boss
-local WALL_STUCK_POS   = vec3:new(8.6982, 139.3350, -1.0850)
-local WALL_BYPASS_POS  = vec3:new(44.0342, 128.4824, 0.0000)
-local WALL_DETECT_DIST = 25.0
+-- Rectangular wall zone: X=[0,35] Y=[95,145] — bot must move left to bypass
+local WALL_X_MIN      =  0.0
+local WALL_X_MAX      = 35.0
+local WALL_Y_MIN      = 95.0
+local WALL_Y_MAX      = 145.0
+local WALL_BYPASS_POS = vec3:new(50.0771, 107.2256, -0.0850)
+
+local function in_wall_zone(pos)
+    local x, y = pos:x(), pos:y()
+    return x >= WALL_X_MIN and x <= WALL_X_MAX
+       and y >= WALL_Y_MIN and y <= WALL_Y_MAX
+end
 
 local task = {
     name          = 'rush_to_boss',
@@ -122,8 +130,8 @@ task.Execute = function()
     -- Healing well — beeline if spotted, otherwise drive to boss coords
     if try_interact_well(player_pos) then return end
 
-    -- Detour around known northern wall — pause Batmobile and pathfind left
-    if player_pos:dist_to(WALL_STUCK_POS) <= WALL_DETECT_DIST then
+    -- Detour around known wall zone — pause Batmobile and pathfind left
+    if in_wall_zone(player_pos) then
         BatmobilePlugin.pause(plugin_label)
         task.status = string.format('detouring wall — moving left (%.1fm)', player_pos:dist_to(WALL_BYPASS_POS))
         pathfinder.request_move(WALL_BYPASS_POS)
