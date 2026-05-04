@@ -29,6 +29,7 @@ end
 task.shouldExecute = function()
     if not world.is_outside() then return false end
     if tracker.boss_dead then return false end
+    if not tracker.temis_confirmed then return false end  -- wait for teleport to confirm
     if not paths.approach or #paths.approach == 0 then return false end
     local ep = entrance_pos()
     if not ep then return false end
@@ -66,8 +67,11 @@ task.Execute = function()
     end
 
     if task.wp_index > #ap then
-        task.status = 'arrived — handing off to enter_dungeon'
-        BatmobilePlugin.pause(plugin_label)
+        local ep = entrance_pos()
+        if ep then
+            task.status = string.format('final step to entrance (%.0fm)', player_pos:dist_to(ep))
+            pathfinder.request_move(ep)
+        end
         return
     end
 
