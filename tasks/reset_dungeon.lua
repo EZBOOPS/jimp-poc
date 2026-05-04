@@ -2,8 +2,8 @@ local settings = require 'core.settings'
 local tracker  = require 'core.tracker'
 local world    = require 'core.world'
 
-local RETRY_INTERVAL = 3.0  -- seconds between reset_all_dungeons() retries
-local MAX_RETRIES    = 3
+local RETRY_INTERVAL = 2.0  -- seconds between reset_all_dungeons() retries
+local MAX_RETRIES    = 1
 
 local task = {
     name        = 'reset_dungeon',

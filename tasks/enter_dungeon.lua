@@ -4,8 +4,8 @@ local world     = require 'core.world'
 
 local plugin_label   = 'gem_farmer'
 local SEARCH_RANGE   = 60.0   -- wider net — player may be placed away from door after reset
-local CHECK_INTERVAL = 2.0    -- seconds between world ID checks after interacting
-local ENTER_TIMEOUT  = 15.0   -- seconds before retrying the interaction
+local CHECK_INTERVAL = 0.5    -- seconds between world ID checks after interacting
+local ENTER_TIMEOUT  = 10.0   -- seconds before retrying the interaction
 
 local ready_time = -1   -- when we're allowed to start entering (after enter_wait)
 

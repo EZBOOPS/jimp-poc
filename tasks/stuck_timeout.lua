@@ -3,8 +3,8 @@ local tracker  = require 'core.tracker'
 local world    = require 'core.world'
 
 -- No-progress stuck detection (player barely moves at all)
-local SOFT_STUCK_TIME    = 8.0   -- seconds before trying a nav reset
-local STUCK_TIME         = 30.0  -- seconds before abandoning the run
+local SOFT_STUCK_TIME    = 30.0  -- seconds before trying a nav reset
+local STUCK_TIME         = 150.0 -- seconds before abandoning the run (2.5 minutes)
 local MOVE_THRESHOLD     = 2.0   -- metres — minimum movement to not be "stuck"
 local UNSTICK_COOLDOWN   = 10.0  -- minimum seconds between unstick attempts
 

@@ -31,9 +31,9 @@ end
 -- Load tasks in priority order (first = highest priority)
 local task_files = {
     'exit_dungeon',
+    'alfred',        -- run before reset so inventory is managed first
     'reset_dungeon',
     'boss_timeout',
-    'alfred',
     'enter_dungeon',
     'rush_to_boss',
     'fight_boss',

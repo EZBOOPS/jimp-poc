@@ -30,9 +30,8 @@ task.shouldExecute = function()
     -- Keep executing until Alfred calls the done callback
     if task.running then return true end
 
-    -- Only trigger when outside the dungeon in a clean post-reset state
+    -- Only trigger when outside the dungeon
     if not world.is_outside() then return false end
-    if tracker.boss_dead then return false end
     if not AlfredTheButlerPlugin then return false end
 
     local status = AlfredTheButlerPlugin.get_status()

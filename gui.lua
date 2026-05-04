@@ -17,10 +17,10 @@ gui.elements = {
     keybind_toggle = keybind:new(0x0A, true, get_hash(plugin_label .. '_keybind_toggle')),
 
     run_tree       = tree_node:new(1),
-    loot_wait      = slider_int:new(1, 20, 4,  get_hash(plugin_label .. '_loot_wait')),
+    loot_wait      = slider_int:new(1, 20, 3,  get_hash(plugin_label .. '_loot_wait')),
     boss_range     = slider_int:new(10, 100, 40, get_hash(plugin_label .. '_boss_range')),
-    enter_wait     = slider_int:new(2, 10, 4,  get_hash(plugin_label .. '_enter_wait')),
-    reset_wait     = slider_int:new(1, 10, 3,  get_hash(plugin_label .. '_reset_wait')),
+    enter_wait     = slider_int:new(1, 10, 2,  get_hash(plugin_label .. '_enter_wait')),
+    reset_wait     = slider_int:new(1, 10, 1,  get_hash(plugin_label .. '_reset_wait')),
 
     dbg_tree           = tree_node:new(1),
     show_boss          = cb(false, 'show_boss'),

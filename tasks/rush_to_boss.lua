@@ -4,7 +4,7 @@ local world        = require 'core.world'
 
 local plugin_label = 'gem_farmer'
 
-local ENTRY_DELAY         = 2.0    -- seconds after entering before starting navigation
+local ENTRY_DELAY         = 1.0    -- seconds after entering before starting navigation
 local WELL_INTERACT_RANGE = 6.0    -- metres — interact with healing well
 local BOSS_POS            = vec3:new(-5.7666, -3.4199, 2.0000)
 local BOSS_PATHFIND_DIST  = 40.0   -- switch to pathfinder within this range (narrow path)
@@ -23,18 +23,40 @@ local function in_wall_zone(pos)
        and y >= WALL_Y_MIN and y <= WALL_Y_MAX
 end
 
+-- Second wall zone: X=[90,115] Y=[-5,25] — bot must move right to bypass
+local WALL2_X_MIN      = 90.0
+local WALL2_X_MAX      = 115.0
+local WALL2_Y_MIN      = -5.0
+local WALL2_Y_MAX      = 25.0
+local WALL2_BYPASS_POS = vec3:new(105.4229, 48.9453, 9.4629)
+
+local function in_wall2_zone(pos)
+    local x, y = pos:x(), pos:y()
+    return x >= WALL2_X_MIN and x <= WALL2_X_MAX
+       and y >= WALL2_Y_MIN and y <= WALL2_Y_MAX
+end
+
+-- Alternate entry variant: when spawned at X>60, navigate to this waypoint first
+local ENTRY_WP_X_THRESHOLD = 60.0
+local ENTRY_WP_POS          = vec3:new(112.1143, 126.9102, 0.0068)
+local ENTRY_WP_ARRIVE_DIST  = 8.0
+
 local task = {
-    name          = 'rush_to_boss',
-    status        = 'idle',
-    well_done     = false,
-    explore_until = -1,
+    name           = 'rush_to_boss',
+    status         = 'idle',
+    well_done      = false,
+    explore_until  = -1,
+    entry_wp_needed = nil,   -- nil = not checked yet
+    entry_wp_done  = false,
 }
 
 local _orig_reset = tracker.reset_run
 tracker.reset_run = function()
     _orig_reset()
-    task.well_done     = false
-    task.explore_until = -1
+    task.well_done       = false
+    task.explore_until   = -1
+    task.entry_wp_needed = nil
+    task.entry_wp_done   = false
 end
 
 local function is_butcher(actor)
@@ -131,11 +153,43 @@ task.Execute = function()
     -- Healing well — beeline if spotted, otherwise drive to boss coords
     if try_interact_well(player_pos) then return end
 
+    -- Detect entry variant on first navigation tick
+    if task.entry_wp_needed == nil then
+        task.entry_wp_needed = player_pos:x() > ENTRY_WP_X_THRESHOLD
+        if task.entry_wp_needed then
+            console.print('[GemFarmer] Alternate entry detected — navigating to entry waypoint first')
+        end
+    end
+
+    -- Alternate entry: navigate to waypoint before main path
+    if task.entry_wp_needed and not task.entry_wp_done then
+        local wp_dist = player_pos:dist_to(ENTRY_WP_POS)
+        if wp_dist <= ENTRY_WP_ARRIVE_DIST then
+            task.entry_wp_done = true
+            console.print('[GemFarmer] Entry waypoint reached — continuing to boss')
+        else
+            task.status = string.format('entry waypoint (%.1fm)', wp_dist)
+            BatmobilePlugin.set_target(plugin_label, ENTRY_WP_POS, false)
+            BatmobilePlugin.resume(plugin_label)
+            BatmobilePlugin.update(plugin_label)
+            BatmobilePlugin.move(plugin_label)
+            return
+        end
+    end
+
     -- Detour around known wall zone — pause Batmobile and pathfind left
     if in_wall_zone(player_pos) then
         BatmobilePlugin.pause(plugin_label)
         task.status = string.format('detouring wall — moving left (%.1fm)', player_pos:dist_to(WALL_BYPASS_POS))
         pathfinder.request_move(WALL_BYPASS_POS)
+        return
+    end
+
+    -- Detour around second wall zone — pause Batmobile and pathfind right
+    if in_wall2_zone(player_pos) then
+        BatmobilePlugin.pause(plugin_label)
+        task.status = string.format('detouring wall2 — moving right (%.1fm)', player_pos:dist_to(WALL2_BYPASS_POS))
+        pathfinder.request_move(WALL2_BYPASS_POS)
         return
     end
 
