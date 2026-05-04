@@ -10,8 +10,8 @@ local BOSS_POS            = vec3:new(-5.7666, -3.4199, 2.0000)
 local BOSS_PATHFIND_DIST  = 40.0   -- switch to pathfinder within this range (narrow path)
 local EXPLORE_AFTER_STUCK = 8.0    -- seconds of free exploration after each escape pause
 
-local NAV_STUCK_DIST      = 10.0   -- units — minimum movement to not be nav-stuck
-local NAV_STUCK_TIME      = 10.0   -- seconds without movement before free-roaming
+local NAV_SAMPLE_INTERVAL = 10.0   -- seconds between position snapshots
+local NAV_STUCK_DIST      = 10.0   -- units — must have moved this far each interval or free-roam
 local NAV_FREE_ROAM_TIME  = 5.0    -- seconds of free roam to escape the stuck spot
 
 -- Wall zone A: X=[0,48] Y=[95,120] — stuck around Y~107, move right to X=50
@@ -38,6 +38,19 @@ local function in_wallb_zone(pos)
     local x, y = pos:x(), pos:y()
     return x >= WALLB_X_MIN and x <= WALLB_X_MAX
        and y >= WALLB_Y_MIN and y <= WALLB_Y_MAX
+end
+
+-- Wall zone E: X=[125,145] Y=[178,200] — stuck at Y~185, route south toward main path
+local WALLE_X_MIN      = 125.0
+local WALLE_X_MAX      = 145.0
+local WALLE_Y_MIN      = 178.0
+local WALLE_Y_MAX      = 200.0
+local WALLE_BYPASS_POS = vec3:new(112.1143, 126.9102, 0.0068)  -- entry waypoint A (south)
+
+local function in_walle_zone(pos)
+    local x, y = pos:x(), pos:y()
+    return x >= WALLE_X_MIN and x <= WALLE_X_MAX
+       and y >= WALLE_Y_MIN and y <= WALLE_Y_MAX
 end
 
 -- Wall zone C: X=[80,100] Y=[65,88] — bot goes south into wall at Y~75, route west
@@ -96,8 +109,8 @@ local task = {
     entry_wp_needed  = nil,   -- nil = not checked yet
     entry_wp_done    = false,
     entry_wp_target  = nil,   -- set to A or B pos when variant detected
-    nav_last_pos     = nil,
-    nav_last_time    = -1,
+    nav_sample_pos   = nil,
+    nav_sample_time  = -1,
     free_roam_until  = -1,
 }
 
@@ -109,8 +122,8 @@ tracker.reset_run = function()
     task.entry_wp_needed = nil
     task.entry_wp_done   = false
     task.entry_wp_target = nil
-    task.nav_last_pos    = nil
-    task.nav_last_time   = -1
+    task.nav_sample_pos  = nil
+    task.nav_sample_time = -1
     task.free_roam_until = -1
 end
 
@@ -181,8 +194,8 @@ task.Execute = function()
             BatmobilePlugin.resume(plugin_label)
             BatmobilePlugin.update(plugin_label)
             BatmobilePlugin.move(plugin_label)
-            task.nav_last_pos  = nil   -- reset so stuck timer starts fresh after explore
-            task.nav_last_time = -1
+            task.nav_sample_pos  = nil   -- reset so stuck check starts fresh after explore
+            task.nav_sample_time = -1
             return
         end
         task.explore_until = -1
@@ -198,8 +211,8 @@ task.Execute = function()
             return
         end
         task.free_roam_until = -1
-        task.nav_last_pos    = nil
-        task.nav_last_time   = -1
+        task.nav_sample_pos  = nil
+        task.nav_sample_time = -1
         console.print('[GemFarmer] Free roam done — resuming boss path')
     end
 
@@ -212,22 +225,25 @@ task.Execute = function()
     if not player then return end
     local player_pos = player:get_position()
 
-    -- Nav stuck detection: if <10 units moved in 10s, free-roam to unstick
-    if task.nav_last_pos == nil then
-        task.nav_last_pos  = player_pos
-        task.nav_last_time = now
-    elseif player_pos:dist_to(task.nav_last_pos) >= NAV_STUCK_DIST then
-        task.nav_last_pos  = player_pos
-        task.nav_last_time = now
-    elseif (now - task.nav_last_time) >= NAV_STUCK_TIME then
-        console.print(string.format('[GemFarmer] Nav stuck (no progress for %.0fs) — free roaming', now - task.nav_last_time))
-        task.free_roam_until = now + NAV_FREE_ROAM_TIME
-        task.nav_last_pos    = nil
-        task.nav_last_time   = -1
-        BatmobilePlugin.resume(plugin_label)
-        BatmobilePlugin.update(plugin_label)
-        BatmobilePlugin.move(plugin_label)
-        return
+    -- Nav stuck detection: snapshot position every NAV_SAMPLE_INTERVAL seconds.
+    -- If less than NAV_STUCK_DIST units moved since last snapshot → free-roam to unstick.
+    if task.nav_sample_pos == nil then
+        task.nav_sample_pos  = player_pos
+        task.nav_sample_time = now
+    elseif (now - task.nav_sample_time) >= NAV_SAMPLE_INTERVAL then
+        local units_moved = player_pos:dist_to(task.nav_sample_pos)
+        if units_moved < NAV_STUCK_DIST then
+            console.print(string.format('[GemFarmer] Nav stuck (%.1f units in %.0fs) — free roaming', units_moved, NAV_SAMPLE_INTERVAL))
+            task.free_roam_until = now + NAV_FREE_ROAM_TIME
+            task.nav_sample_pos  = nil
+            task.nav_sample_time = -1
+            BatmobilePlugin.resume(plugin_label)
+            BatmobilePlugin.update(plugin_label)
+            BatmobilePlugin.move(plugin_label)
+            return
+        end
+        task.nav_sample_pos  = player_pos
+        task.nav_sample_time = now
     end
 
     -- Boss check first
@@ -287,6 +303,14 @@ task.Execute = function()
         BatmobilePlugin.pause(plugin_label)
         task.status = string.format('detouring wall B (%.1fm)', player_pos:dist_to(WALLB_BYPASS_POS))
         pathfinder.request_move(WALLB_BYPASS_POS)
+        return
+    end
+
+    -- Detour around wall zone E (X~134, Y~185) — route south toward main path
+    if in_walle_zone(player_pos) then
+        BatmobilePlugin.pause(plugin_label)
+        task.status = string.format('detouring wall E (%.1fm)', player_pos:dist_to(WALLE_BYPASS_POS))
+        pathfinder.request_move(WALLE_BYPASS_POS)
         return
     end
 
