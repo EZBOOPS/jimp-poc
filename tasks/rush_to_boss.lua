@@ -6,6 +6,7 @@ local plugin_label = 'gem_farmer'
 
 local ENTRY_DELAY         = 2.0   -- seconds after entering before starting navigation
 local WELL_INTERACT_RANGE = 6.0   -- metres — interact with healing well
+local BOSS_POS            = vec3:new(5.0742, 6.3398, 1.9697)
 
 local task = {
     name      = 'rush_to_boss',
@@ -96,14 +97,14 @@ task.Execute = function()
         return
     end
 
-    -- Healing well — beeline if spotted, otherwise keep exploring
+    -- Healing well — beeline if spotted, otherwise head to boss coords
     if try_interact_well(player_pos) then return end
 
-    -- Free Batmobile exploration handles all wall routing
-    task.status = 'exploring dungeon'
-    BatmobilePlugin.resume(plugin_label)
-    BatmobilePlugin.update(plugin_label)
-    BatmobilePlugin.move(plugin_label)
+    -- Drive toward boss position; game pathfinder handles wall routing
+    -- Batmobile stays paused so it doesn't roam and engage extra mobs
+    BatmobilePlugin.pause(plugin_label)
+    task.status = string.format('heading to boss (%.1fm)', player_pos:dist_to(BOSS_POS))
+    pathfinder.request_move(BOSS_POS)
 end
 
 return task
