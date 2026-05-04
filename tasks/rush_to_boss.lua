@@ -1,0 +1,104 @@
+local settings     = require 'core.settings'
+local tracker      = require 'core.tracker'
+local world        = require 'core.world'
+
+local plugin_label = 'gem_farmer'
+
+local ENTRY_DELAY         = 2.0   -- seconds after entering before starting navigation
+local WELL_INTERACT_RANGE = 6.0   -- metres — interact with healing well
+local WELL_SEEK_RANGE     = 18.0  -- metres — start walking toward well
+
+local task = {
+    name      = 'rush_to_boss',
+    status    = 'idle',
+    well_done = false,
+}
+
+local _orig_reset = tracker.reset_run
+tracker.reset_run = function()
+    _orig_reset()
+    task.well_done = false
+end
+
+local function is_butcher(actor)
+    local name = actor:get_skin_name()
+    return name and name:lower():find('butcher') ~= nil
+end
+
+local function find_boss(player_pos)
+    for _, actor in ipairs(actors_manager.get_enemy_actors()) do
+        if actor:is_boss() and not actor:is_dead() and not is_butcher(actor) then
+            if actor:get_position():dist_to(player_pos) < settings.boss_range then
+                return actor
+            end
+        end
+    end
+    return nil
+end
+
+local function try_interact_well(player_pos)
+    if task.well_done then return end
+    for _, actor in ipairs(actors_manager.get_all_actors()) do
+        local name = actor:get_skin_name() or ''
+        if name == 'Healing_Well_Basic' then
+            local dist = actor:get_position():dist_to(player_pos)
+            if dist <= WELL_INTERACT_RANGE then
+                console.print(string.format('[GemFarmer] Interacting with Healing_Well_Basic (%.1fm)', dist))
+                interact_object(actor)
+                task.well_done = true
+            elseif dist <= WELL_SEEK_RANGE then
+                pathfinder.request_move(actor:get_position())
+            end
+            return
+        end
+    end
+end
+
+task.shouldExecute = function()
+    return world.is_inside() and not tracker.boss_found and not tracker.boss_dead
+end
+
+task.Execute = function()
+    if BatmobilePlugin == nil then
+        task.status = 'ERROR: BatmobilePlugin not loaded'
+        return
+    end
+
+    local now = get_time_since_inject()
+
+    if tracker.escape_until > 0 and now < tracker.escape_until then
+        task.status = string.format('escape pause (%.1fs)', tracker.escape_until - now)
+        BatmobilePlugin.pause(plugin_label)
+        return
+    end
+
+    if tracker.enter_time > 0 and (now - tracker.enter_time) < ENTRY_DELAY then
+        task.status = 'waiting for dungeon load'
+        return
+    end
+
+    local player = get_local_player()
+    if not player then return end
+    local player_pos = player:get_position()
+
+    -- Boss check first
+    local boss = find_boss(player_pos)
+    if boss then
+        tracker.boss_found    = true
+        tracker.boss_last_pos = boss:get_position()
+        BatmobilePlugin.pause(plugin_label)
+        console.print('[GemFarmer] Boss detected — handing off to fight task')
+        return
+    end
+
+    -- Healing well — interact opportunistically while exploring
+    try_interact_well(player_pos)
+
+    -- Free Batmobile exploration handles all wall routing
+    task.status = 'exploring dungeon'
+    BatmobilePlugin.resume(plugin_label)
+    BatmobilePlugin.update(plugin_label)
+    BatmobilePlugin.move(plugin_label)
+end
+
+return task
