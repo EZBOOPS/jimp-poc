@@ -31,9 +31,11 @@ end
 -- Load tasks in priority order (first = highest priority)
 local task_files = {
     'exit_dungeon',
-    'alfred',        -- run before reset so inventory is managed first
+    'alfred',              -- run before reset so inventory is managed first
     'reset_dungeon',
     'boss_timeout',
+    'teleport_to_dungeon', -- teleport to Temis if far from dungeon or in wrong world
+    'walk_to_dungeon',     -- follow waypoints from Temis to dungeon entrance
     'enter_dungeon',
     'rush_to_boss',
     'fight_boss',
