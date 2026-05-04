@@ -13,6 +13,7 @@ local tracker = {
     healing_well_pos      = nil,
     enter_time            = -1,
     escape_until          = -1,
+    temis_confirmed       = false,
 }
 
 tracker.reset_run = function()
@@ -26,6 +27,7 @@ tracker.reset_run = function()
     tracker.healing_well_pos      = nil
     tracker.enter_time            = -1
     tracker.escape_until          = -1
+    tracker.temis_confirmed       = false
 end
 
 return tracker
