@@ -6,7 +6,8 @@ local plugin_label = 'gem_farmer'
 
 local ENTRY_DELAY         = 2.0    -- seconds after entering before starting navigation
 local WELL_INTERACT_RANGE = 6.0    -- metres — interact with healing well
-local BOSS_POS            = vec3:new(5.0742, 6.3398, 1.9697)
+local BOSS_POS            = vec3:new(-5.7666, -3.4199, 2.0000)
+local BOSS_PATHFIND_DIST  = 40.0   -- switch to pathfinder within this range (narrow path)
 local EXPLORE_AFTER_STUCK = 8.0    -- seconds of free exploration after each escape pause
 
 -- Rectangular wall zone: X=[0,35] Y=[95,145] — bot must move left to bypass
@@ -138,12 +139,20 @@ task.Execute = function()
         return
     end
 
-    -- Head to boss via Batmobile
-    task.status = string.format('heading to boss (%.1fm)', player_pos:dist_to(BOSS_POS))
-    BatmobilePlugin.set_target(plugin_label, BOSS_POS, false)
-    BatmobilePlugin.resume(plugin_label)
-    BatmobilePlugin.update(plugin_label)
-    BatmobilePlugin.move(plugin_label)
+    local boss_dist = player_pos:dist_to(BOSS_POS)
+    if boss_dist <= BOSS_PATHFIND_DIST then
+        -- Narrow path near boss — pathfinder handles tight corridors better
+        BatmobilePlugin.pause(plugin_label)
+        task.status = string.format('final approach to boss (%.1fm)', boss_dist)
+        pathfinder.request_move(BOSS_POS)
+    else
+        -- Longer stretch — Batmobile drives
+        task.status = string.format('heading to boss (%.1fm)', boss_dist)
+        BatmobilePlugin.set_target(plugin_label, BOSS_POS, false)
+        BatmobilePlugin.resume(plugin_label)
+        BatmobilePlugin.update(plugin_label)
+        BatmobilePlugin.move(plugin_label)
+    end
 end
 
 return task
