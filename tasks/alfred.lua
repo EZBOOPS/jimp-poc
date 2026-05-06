@@ -21,7 +21,8 @@ local function reset()
     local a = alfred_plugin()
     if a then a.pause(plugin_label) end
     task.status = status_enum.IDLE
-    console.print('[GemFarmer] Alfred finished — resuming farming')
+    tracker.temis_confirmed = false  -- force teleport_to_dungeon to re-run instead of walking back
+    console.print('[GemFarmer] Alfred finished — teleporting back to Temis')
 end
 
 local _orig_reset = tracker.reset_run
