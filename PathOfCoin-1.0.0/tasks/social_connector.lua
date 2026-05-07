@@ -7,7 +7,7 @@ local KEY_O   = 0x4F
 local KEY_ESC = 0x1B
 
 local function step_delay()    return settings.social_step_delay    or 1 end
-local function join_wait()     return settings.social_join_wait      or 3 end
+local function join_wait()     return settings.social_join_wait      or 6 end
 local function transfer_wait() return settings.social_transfer_wait  or 2 end
 local function leave_wait()    return settings.social_leave_wait     or 2 end
 local function arrival_timeout() return settings.social_arrival_timeout or 30 end
