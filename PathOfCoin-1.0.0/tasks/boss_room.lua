@@ -6,23 +6,24 @@ local stats    = require 'core.stats'
 local BOSS_ROOM_POS    = vec3:new(-1.6367, 0.8418, 1.8574)
 local BOSS_ROOM_RANGE  = 25.0
 local TREASURE_CHEST   = 'Warplans_NMD_3C_treasurebeast_chest_destructible'
-local CHEST_SCAN_DIST  = 20.0
-local INTERACT_RANGE   = 5.0
-local CHEST_WAIT       = 3.0
-local GOBLIN_RANGE     = 40.0
-local BOSS_TIMEOUT     = 120.0
-local GOBLIN_TIMEOUT   = 30.0
-local CHEST_TIMEOUT    = 20.0
-
-local GOBLIN_SPAWN_WAIT = 2.0  -- seconds after chest dies before scanning for goblins
+local CHEST_SCAN_DIST   = 40.0  -- wide scan so we don't lose track mid-fight
+local INTERACT_RANGE    = 5.0
+local CHEST_WAIT        = 3.0
+local GOBLIN_RANGE      = 40.0
+local BOSS_TIMEOUT      = 120.0
+local GOBLIN_TIMEOUT    = 30.0
+local CHEST_TIMEOUT     = 20.0
+local CHEST_GONE_CONFIRM = 1.5  -- chest must be absent for this long before we believe it's dead
+local GOBLIN_SPAWN_WAIT  = 2.0  -- seconds after chest confirmed dead before scanning for goblins
 
 local task = {
-    name              = 'boss_room',
-    status            = 'idle',
-    enter_time        = -1,
-    chest_died_time   = -1,
-    goblin_target_id  = nil,
-    goblin_chase_time = -1,
+    name                = 'boss_room',
+    status              = 'idle',
+    enter_time          = -1,
+    chest_first_gone    = -1,  -- time chest was first not found (for confirmation)
+    chest_died_time     = -1,  -- time chest confirmed dead
+    goblin_target_id    = nil,
+    goblin_chase_time   = -1,
 }
 
 local _orig_reset = tracker.reset_run
@@ -34,6 +35,7 @@ tracker.reset_run = function()
     tracker.boss_died_time    = -1
     tracker.goblins_phase     = false
     task.enter_time           = -1
+    task.chest_first_gone     = -1
     task.chest_died_time      = -1
     task.goblin_target_id     = nil
     task.goblin_chase_time    = -1
@@ -145,6 +147,8 @@ task.Execute = function()
     if not tracker.goblins_phase then
         local chest, dist = find_treasure_chest(player_pos)
         if chest then
+            -- Chest is alive — reset any gone-detection and keep attacking
+            task.chest_first_gone = -1
             if dist > INTERACT_RANGE then
                 task.status = string.format('moving to treasure chest (%.1fm)', dist)
                 pathfinder.request_move(chest:get_position())
@@ -153,22 +157,41 @@ task.Execute = function()
                 set_target(chest)
             end
         else
-            -- Chest is gone: either we killed it or it was never in range
+            -- Chest not visible — could be a brief render miss or actually dead
             if task.chest_died_time < 0 then
-                -- Haven't seen chest yet and timeout not reached — keep scanning
-                if tracker.boss_died_time > 0 and (now - tracker.boss_died_time) <= CHEST_TIMEOUT then
-                    task.status = 'scanning for treasure chest...'
-                    return
+                local scan_elapsed = tracker.boss_died_time > 0 and (now - tracker.boss_died_time) or 0
+
+                if task.chest_first_gone < 0 then
+                    -- First tick we don't see it
+                    if scan_elapsed <= CHEST_TIMEOUT then
+                        -- Still within scan window: might just not have spawned yet
+                        task.chest_first_gone = now
+                        task.status = 'scanning for treasure chest...'
+                    else
+                        -- Scan timed out entirely, give up looking
+                        console.print('[PathOfCoin] Chest scan timed out — skipping to goblin phase')
+                        task.chest_died_time = now
+                    end
+                else
+                    local gone_for = now - task.chest_first_gone
+                    if gone_for >= CHEST_GONE_CONFIRM then
+                        -- Absent long enough to be confident it's really dead
+                        console.print(string.format('[PathOfCoin] Chest confirmed dead (absent %.1fs) — waiting for goblins', gone_for))
+                        task.chest_died_time = now
+                    else
+                        task.status = string.format('chest gone — confirming dead (%.1fs/%.1fs)', gone_for, CHEST_GONE_CONFIRM)
+                    end
                 end
-                -- Either we were attacking and it just died, or scan timed out
-                console.print('[PathOfCoin] Chest gone — waiting for goblins to spawn')
-                task.chest_died_time = now
             end
-            if (now - task.chest_died_time) >= GOBLIN_SPAWN_WAIT then
-                console.print('[PathOfCoin] Entering goblin phase')
-                tracker.goblins_phase = true
-            else
-                task.status = string.format('chest dead — waiting for goblins (%.1fs)', GOBLIN_SPAWN_WAIT - (now - task.chest_died_time))
+
+            if task.chest_died_time > 0 then
+                local wait_left = GOBLIN_SPAWN_WAIT - (now - task.chest_died_time)
+                if wait_left <= 0 then
+                    console.print('[PathOfCoin] Entering goblin phase')
+                    tracker.goblins_phase = true
+                else
+                    task.status = string.format('chest dead — waiting for goblins (%.1fs)', wait_left)
+                end
             end
         end
         return
