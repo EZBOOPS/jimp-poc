@@ -40,16 +40,9 @@ on_update(function()
     end
 
     if world.is_in_dungeon() then
-        -- On script load inside dungeon with no state — fire social immediately
-        if settings.use_social_connector and social.step == 0 and
-           not tracker.left_party and not tracker.route_done then
-            if tracker.enter_time < 0 then tracker.enter_time = now end
-            console.print('[PathOfCoin] In dungeon on startup — firing social connector')
-            social.start()
-        end
 
-        -- Global hang watchdog: if same task runs too long without progress, fire social
-        if settings.use_social_connector and social.step == 0 then
+        -- Global hang watchdog: only after route_done, if boss/gold phase hangs too long
+        if settings.use_social_connector and social.step == 0 and tracker.route_done then
             local cur = task_manager.get_current_task()
             local cur_name = cur and cur.name or 'idle'
             if cur_name ~= hang_last_task then
@@ -118,9 +111,9 @@ on_update(function()
             end
         end
 
-        -- Fire social connector once route is done (covers boss, goblins, gold, and idle cases)
+        -- Fire social connector only after boss chest and gold pickup are done
         if settings.use_social_connector then
-            if social.step == 0 and tracker.route_done then
+            if social.step == 0 and tracker.boss_chest_done and tracker.gold_pickup_done then
                 social.start()
             end
             if social.step ~= nil and social.step > 0 then social.Execute() end

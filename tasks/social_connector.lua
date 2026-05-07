@@ -223,13 +223,9 @@ task.Execute = function()
             task.retry_count = 0
             set_step(STEP.POST_TELEPORT_WAIT)
         elseif waited(arrival_timeout()) then
-            task.retry_count = task.retry_count + 1
-            if task.retry_count >= MAX_RETRIES then
-                abort('transfer arrival max retries reached')
-            else
-                log(string.format('arrival timeout — retrying transfer (%d/%d)', task.retry_count, MAX_RETRIES))
-                set_step(STEP.CLICK_TRANSFER)
-            end
+            log('arrival timeout — skipping to leave party and restarting')
+            task.retry_count = 0
+            set_step(STEP.OPEN_SOCIAL_2)
         end
 
     elseif s == STEP.TEMERITY_CLICK_TELEPORT then
@@ -246,13 +242,9 @@ task.Execute = function()
             task.retry_count = 0
             set_step(STEP.POST_TELEPORT_WAIT)
         elseif waited(arrival_timeout()) then
-            task.retry_count = task.retry_count + 1
-            if task.retry_count >= MAX_RETRIES then
-                abort('Temerity teleport max retries reached')
-            else
-                log(string.format('Temerity world change timeout — retrying teleport (%d/%d)', task.retry_count, MAX_RETRIES))
-                set_step(STEP.TEMERITY_CLICK_TELEPORT)
-            end
+            log('Temerity teleport timeout — skipping to leave party and restarting')
+            task.retry_count = 0
+            set_step(STEP.OPEN_SOCIAL_2)
         end
 
     elseif s == STEP.POST_TELEPORT_WAIT then
