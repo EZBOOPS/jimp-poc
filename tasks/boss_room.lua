@@ -14,10 +14,13 @@ local BOSS_TIMEOUT     = 120.0
 local GOBLIN_TIMEOUT   = 30.0
 local CHEST_TIMEOUT    = 20.0
 
+local GOBLIN_SPAWN_WAIT = 2.0  -- seconds after chest dies before scanning for goblins
+
 local task = {
     name              = 'boss_room',
     status            = 'idle',
     enter_time        = -1,
+    chest_died_time   = -1,
     goblin_target_id  = nil,
     goblin_chase_time = -1,
 }
@@ -31,6 +34,7 @@ tracker.reset_run = function()
     tracker.boss_died_time    = -1
     tracker.goblins_phase     = false
     task.enter_time           = -1
+    task.chest_died_time      = -1
     task.goblin_target_id     = nil
     task.goblin_chase_time    = -1
 end
@@ -137,7 +141,7 @@ task.Execute = function()
         return
     end
 
-    -- Step 3: find and attack the treasure chest
+    -- Step 3: find, move to, and attack the treasure chest until it dies
     if not tracker.goblins_phase then
         local chest, dist = find_treasure_chest(player_pos)
         if chest then
@@ -147,21 +151,30 @@ task.Execute = function()
             else
                 task.status = 'attacking treasure chest'
                 set_target(chest)
-                tracker.goblins_phase = true
-                console.print('[PathOfCoin] Attacking treasure chest — chasing goblins')
             end
         else
-            if tracker.boss_died_time > 0 and (now - tracker.boss_died_time) > CHEST_TIMEOUT then
-                console.print('[PathOfCoin] Chest not found after timeout — skipping to goblin phase')
+            -- Chest is gone: either we killed it or it was never in range
+            if task.chest_died_time < 0 then
+                -- Haven't seen chest yet and timeout not reached — keep scanning
+                if tracker.boss_died_time > 0 and (now - tracker.boss_died_time) <= CHEST_TIMEOUT then
+                    task.status = 'scanning for treasure chest...'
+                    return
+                end
+                -- Either we were attacking and it just died, or scan timed out
+                console.print('[PathOfCoin] Chest gone — waiting for goblins to spawn')
+                task.chest_died_time = now
+            end
+            if (now - task.chest_died_time) >= GOBLIN_SPAWN_WAIT then
+                console.print('[PathOfCoin] Entering goblin phase')
                 tracker.goblins_phase = true
             else
-                task.status = 'scanning for treasure chest...'
+                task.status = string.format('chest dead — waiting for goblins (%.1fs)', GOBLIN_SPAWN_WAIT - (now - task.chest_died_time))
             end
         end
         return
     end
 
-    -- Step 4: chase and kill goblins
+    -- Step 4: wait for goblins to spawn then chase and kill them
     local goblin = find_closest_enemy(player_pos, GOBLIN_RANGE)
     if goblin then
         local goblin_pos = goblin:get_position()
