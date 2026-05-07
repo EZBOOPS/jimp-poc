@@ -3,7 +3,7 @@ local world_module = {}
 local function get_id()
     local ok, world = pcall(get_current_world)
     if not ok or not world then return 0 end
-    local ok2, id = pcall(function() return world:get_id() end)
+    local ok2, id = pcall(function() return world:get_world_id() end)
     if not ok2 then return 0 end
     return id
 end

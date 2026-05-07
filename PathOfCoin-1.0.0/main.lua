@@ -17,6 +17,10 @@ local function draw_crosshair(cx, cy, label, col)
     graphics.text_2d(label, vec2:new(cx + 14, cy - 8), 14, col)
 end
 
+local hang_last_task   = nil
+local hang_last_time   = -1
+local HANG_TIMEOUT     = 120.0  -- seconds on same task before force-firing social
+
 on_update(function()
     settings.update()  -- always update so sliders are live even when disabled
     if not get_local_player() then return end
@@ -36,15 +40,30 @@ on_update(function()
     end
 
     if world.is_in_dungeon() then
-        -- If we're running the route but never confirmed we left the party,
-        -- assume we're in someone else's instance — fire leave party sequence
-        if settings.use_social_connector and not tracker.left_party and not tracker.route_done then
+        -- On script load inside dungeon with no state — fire social immediately
+        if settings.use_social_connector and social.step == 0 and
+           not tracker.left_party and not tracker.route_done then
             if tracker.enter_time < 0 then tracker.enter_time = now end
-            local grace = 15.0
-            if (now - tracker.enter_time) >= grace and social.step == 0 then
-                console.print('[PathOfCoin] In dungeon but party not left — firing leave party')
+            console.print('[PathOfCoin] In dungeon on startup — firing social connector')
+            social.start()
+        end
+
+        -- Global hang watchdog: if same task runs too long without progress, fire social
+        if settings.use_social_connector and social.step == 0 then
+            local cur = task_manager.get_current_task()
+            local cur_name = cur and cur.name or 'idle'
+            if cur_name ~= hang_last_task then
+                hang_last_task = cur_name
+                hang_last_time = now
+            elseif hang_last_time > 0 and (now - hang_last_time) >= HANG_TIMEOUT then
+                console.print('[PathOfCoin] Hang watchdog fired on task: ' .. cur_name .. ' — firing social connector')
+                hang_last_task = nil
+                hang_last_time = -1
                 social.start()
             end
+        else
+            hang_last_task = nil
+            hang_last_time = -1
         end
 
         task_manager.execute_tasks()
@@ -99,9 +118,9 @@ on_update(function()
             end
         end
 
-        -- Fire social connector as soon as gold pickup is done
+        -- Fire social connector once route is done (covers boss, goblins, gold, and idle cases)
         if settings.use_social_connector then
-            if tracker.boss_chest_done and tracker.gold_pickup_done and social.step == 0 then
+            if social.step == 0 and tracker.route_done then
                 social.start()
             end
             if social.step ~= nil and social.step > 0 then social.Execute() end
@@ -139,23 +158,17 @@ on_render(function()
         draw_crosshair(settings.social_teleport_x,  settings.social_teleport_y,  '6. Teleport (Tem)', color_white(220))
     end
 
-    -- Stats overlay always visible when enabled
-    if settings.enabled then
-        stats.render()
-    end
+    -- Stats overlay always visible
+    stats.render()
 
     if not settings.enabled then return end
 
     -- Task HUD
     local task = task_manager.get_current_task()
-    if task and world.is_in_dungeon() then
-        local msg = 'Path of Coin: ' .. task.name
-        if task.status and task.status ~= '' then
-            msg = msg .. ' (' .. task.status .. ')'
-        end
-        local x = get_screen_width() / 2 - (#msg * 5.5)
-        graphics.text_2d(msg, vec2:new(x, 80), 20, color_white(255))
-    end
+    local social_status = (social.step ~= nil and social.step > 0) and ('social: ' .. (social.status or '')) or nil
+    local msg = 'Path of Coin: ' .. (social_status or (task and (task.name .. (task.status ~= '' and ' (' .. task.status .. ')' or '')) or 'idle'))
+    local x = get_screen_width() / 2 - (#msg * 5.5)
+    graphics.text_2d(msg, vec2:new(x, 80), 20, color_white(255))
 
     -- Recent click markers
     local clicks, fade = social.get_recent_clicks()

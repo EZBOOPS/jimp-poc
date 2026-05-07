@@ -104,8 +104,9 @@ local WAYPOINTS = {
 local TELEPORT_SPELL_ID = 288106
 local TELEPORT_MIN_DIST = 8.0
 
-local STUCK_THRESHOLD = 8.0
-local STUCK_DIST      = 1.0
+local STUCK_THRESHOLD    = 8.0
+local STUCK_DIST         = 1.0
+local WRONG_INSTANCE_WP  = 20  -- if past this waypoint with 0 chests, assume wrong instance
 
 local task = {
     name            = 'run_route',
@@ -161,6 +162,13 @@ task.Execute = function()
     if not player then return end
     local player_pos = player:get_position()
     local now = get_time_since_inject()
+
+    -- Wrong instance check: past checkpoint with no chests found — leave party
+    if settings.open_chests and task.wp_index > WRONG_INSTANCE_WP and task.chests_on_route == 0 then
+        console.print('[PathOfCoin] Past waypoint ' .. WRONG_INSTANCE_WP .. ' with no chests — wrong instance, firing social connector')
+        tracker.route_done = true  -- stop routing so social can fire
+        return
+    end
 
     -- Batmobile rush mode
     if settings.batmobile_rush then
