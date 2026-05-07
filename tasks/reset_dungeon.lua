@@ -1,72 +1,83 @@
-local settings = require 'core.settings'
 local tracker  = require 'core.tracker'
+local settings = require 'core.settings'
 local world    = require 'core.world'
-local stats    = require 'core.stats'
 
-local RETRY_INTERVAL = 2.0  -- seconds between reset_all_dungeons() retries
-local MAX_RETRIES    = 1
+local RESET_POS   = vec3:new(108.5811, 47.0459, 0.0977)
+local PORTAL_NAME = 'Portal_Town'
+local PORTAL_RANGE = 15.0
 
 local task = {
-    name        = 'reset_dungeon',
-    status      = 'idle',
-    retries     = 0,
-    retry_time  = -1,
+    name   = 'reset_dungeon',
+    status = 'idle',
+    step   = 0,
+    step_t = -1,
 }
 
-task.shouldExecute = function()
-    if not world.is_outside() then return false end
-    if not tracker.boss_dead then return false end
+local function set_step(s)
+    task.step  = s
+    task.step_t = get_time_since_inject()
+end
 
-    -- Wait for Alfred to finish inventory management before resetting
-    if AlfredTheButlerPlugin then
-        local status = AlfredTheButlerPlugin.get_status()
-        if status and (status.need_trigger or status.inventory_full or status.need_repair) then
-            return false
+local function waited(secs)
+    return (get_time_since_inject() - task.step_t) >= secs
+end
+
+local function find_portal(player_pos)
+    for _, actor in ipairs(actors_manager.get_all_actors()) do
+        local ok, name = pcall(function() return actor:get_skin_name() end)
+        if ok and name and name:find(PORTAL_NAME) then
+            local dist = actor:get_position():dist_to(player_pos)
+            if dist <= PORTAL_RANGE then
+                return actor, dist
+            end
         end
     end
+    return nil, nil
+end
 
-    return true
+task.shouldExecute = function()
+    if not world.is_in_dungeon() then return false end
+    if not tracker.route_done then return false end
+    if not tracker.boss_chest_done then return false end
+    if not tracker.left_party then return false end
+    return task.step > 0 or tracker.reset_time >= 0
+end
+
+task.start = function()
+    if task.step == 0 then
+        set_step(1)
+        tracker.reset_time = get_time_since_inject()
+    end
 end
 
 task.Execute = function()
-    local now = get_time_since_inject()
+    local player = get_local_player()
+    if not player then return end
+    local player_pos = player:get_position()
 
-    -- First call or retry: fire reset_all_dungeons()
-    if tracker.reset_time < 0 then
-        task.retries   = task.retries + 1
-        tracker.reset_time = now
-        task.retry_time    = -1
-        stats.record_reset()
-        reset_all_dungeons()
-        task.status = string.format('resetting dungeon (attempt %d/%d)', task.retries, MAX_RETRIES)
-        console.print(string.format('[GemFarmer] reset_all_dungeons() attempt %d/%d', task.retries, MAX_RETRIES))
-        return
-    end
-
-    -- Waiting between retry calls
-    if task.retry_time > 0 then
-        if (now - task.retry_time) >= RETRY_INTERVAL then
-            tracker.reset_time = -1  -- triggers another reset call next tick
-        else
-            task.status = string.format('waiting to retry reset (%.1fs)', now - task.retry_time)
-        end
-        return
-    end
-
-    local elapsed = now - tracker.reset_time
-    task.status = string.format('waiting after reset (%.1fs / %ds)', elapsed, settings.reset_wait)
-
-    if elapsed >= settings.reset_wait then
-        if task.retries < MAX_RETRIES then
-            -- Fire another reset to make sure it took
-            console.print(string.format('[GemFarmer] Firing extra reset %d/%d', task.retries + 1, MAX_RETRIES))
-            task.retry_time    = now
-            tracker.reset_time = -1
-        else
-            -- All retries done — move to next run
-            task.retries = 0
+    if task.step == 1 then
+        task.status = 'looking for exit portal'
+        local portal, dist = find_portal(player_pos)
+        if portal then
+            if dist > 3.0 then
+                pathfinder.request_move(portal:get_position())
+            else
+                interact_object(portal)
+                set_step(2)
+            end
+        elseif waited(settings.reset_wait or 10) then
+            task.status = 'portal timeout — resetting tracker'
             tracker.reset_run()
-            console.print('[GemFarmer] Reset complete — starting next run')
+            task.step = 0
+        end
+    elseif task.step == 2 then
+        task.status = 'waiting for world transition'
+        if not world.is_in_dungeon() then
+            tracker.reset_run()
+            task.step = 0
+        elseif waited(15) then
+            tracker.reset_run()
+            task.step = 0
         end
     end
 end

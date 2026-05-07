@@ -1,10 +1,12 @@
 local stats = {
     runs_completed  = 0,
     runs_abandoned  = 0,
-    resets          = 0,
     session_start   = -1,
     total_run_time  = 0,
     last_run_time   = 0,
+    chests_total    = 0,
+    goblins_cleared = 0,
+    social_retries  = 0,
 }
 
 local function ensure_start()
@@ -13,7 +15,7 @@ local function ensure_start()
     end
 end
 
-stats.record_kill = function(enter_time)
+stats.record_run = function(enter_time, chests)
     ensure_start()
     stats.runs_completed = stats.runs_completed + 1
     if enter_time and enter_time >= 0 then
@@ -21,6 +23,7 @@ stats.record_kill = function(enter_time)
         stats.last_run_time  = dur
         stats.total_run_time = stats.total_run_time + dur
     end
+    stats.chests_total = stats.chests_total + (chests or 0)
 end
 
 stats.record_abandon = function()
@@ -28,9 +31,14 @@ stats.record_abandon = function()
     stats.runs_abandoned = stats.runs_abandoned + 1
 end
 
-stats.record_reset = function()
+stats.record_goblins = function()
     ensure_start()
-    stats.resets = stats.resets + 1
+    stats.goblins_cleared = stats.goblins_cleared + 1
+end
+
+stats.record_social_retry = function()
+    ensure_start()
+    stats.social_retries = stats.social_retries + 1
 end
 
 stats.runs_per_hour = function()
@@ -64,15 +72,19 @@ stats.render = function()
         y = y + lh
     end
 
-    line('[ Gem Farmer Stats ]', color_yellow(255))
-    line(string.format('Session:   %s',  fmt_time(stats.session_elapsed())), color_white(180))
-    line(string.format('Completed: %d',  stats.runs_completed), color_green(220))
-    line(string.format('Abandoned: %d',  stats.runs_abandoned), color_red(200))
-    line(string.format('Resets:    %d',  stats.resets), color_white(180))
-    line(string.format('Runs/hr:   %.1f', stats.runs_per_hour()), color_yellow(220))
+    line('[ Path of Coin ]',         color_yellow(255))
+    line(string.format('Session:   %s',   fmt_time(stats.session_elapsed())),  color_white(180))
+    line(string.format('Completed: %d',   stats.runs_completed),               color_green(220))
+    line(string.format('Abandoned: %d',   stats.runs_abandoned),               color_red(200))
+    line(string.format('Runs/hr:   %.1f', stats.runs_per_hour()),               color_yellow(220))
+    line(string.format('Chests:    %d',   stats.chests_total),                 color_white(180))
+    line(string.format('Goblins:   %d',   stats.goblins_cleared),              color_white(180))
+    if stats.social_retries > 0 then
+        line(string.format('S.Retries: %d', stats.social_retries),             color_red(180))
+    end
     if stats.runs_completed > 0 then
-        line(string.format('Avg time:  %s', fmt_time(stats.avg_run_time())), color_white(180))
-        line(string.format('Last run:  %s', fmt_time(stats.last_run_time)), color_white(150))
+        line(string.format('Avg time:  %s', fmt_time(stats.avg_run_time())),   color_white(180))
+        line(string.format('Last run:  %s', fmt_time(stats.last_run_time)),    color_white(150))
     end
 end
 

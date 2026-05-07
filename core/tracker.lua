@@ -1,33 +1,37 @@
 local tracker = {
-    boss_found            = false,
-    boss_dead             = false,
-    boss_last_pos         = nil,
-    loot_start_time       = -1,
-
-    reset_time            = -1,
-
+    chests_opened         = 0,
+    run_count             = 0,
     interact_time         = -1,
-    interact_cooldown     = 5.0,
+    interact_cooldown     = 2.0,
     last_interact_attempt = nil,
-
-    healing_well_pos      = nil,
+    reset_time            = -1,
     enter_time            = -1,
-    escape_until          = -1,
-    temis_confirmed       = false,
+    route_done            = false,
+    boss_dead             = false,
+    boss_chest_done       = false,
+    goblins_phase         = false,
+    boss_died_time        = -1,
+    gold_pickup_done      = false,
+    gold_stuck_pos        = nil,
+    gold_stuck_time       = -1,
+    left_party            = false,
 }
 
 tracker.reset_run = function()
-    tracker.boss_found            = false
-    tracker.boss_dead             = false
-    tracker.boss_last_pos         = nil
-    tracker.loot_start_time       = -1
-    tracker.reset_time            = -1
+    tracker.chests_opened         = 0
     tracker.interact_time         = -1
     tracker.last_interact_attempt = nil
-    tracker.healing_well_pos      = nil
+    tracker.reset_time            = -1
     tracker.enter_time            = -1
-    tracker.escape_until          = -1
-    tracker.temis_confirmed       = false
+    tracker.route_done            = false
+    tracker.boss_dead             = false
+    tracker.boss_chest_done       = false
+    tracker.goblins_phase         = false
+    tracker.boss_died_time        = -1
+    tracker.gold_pickup_done      = false
+    tracker.gold_stuck_pos        = nil
+    tracker.gold_stuck_time       = -1
+    tracker.left_party            = false
 end
 
 return tracker

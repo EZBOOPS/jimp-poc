@@ -1,8 +1,8 @@
 local task_manager = {}
 
-local tasks       = {}
-local last_tick   = -1
-local tick_rate   = 0.05   -- max 20 executions per second
+local tasks        = {}
+local last_tick    = -1
+local tick_rate    = 0.05
 local current_task = { name = 'Idle', status = 'idle' }
 
 task_manager.register_task = function(task)
@@ -28,17 +28,9 @@ task_manager.get_current_task = function()
     return current_task
 end
 
--- Load tasks in priority order (first = highest priority)
 local task_files = {
-    'exit_dungeon',
-    'alfred',              -- run before reset so inventory is managed first
-    'reset_dungeon',
-    'boss_timeout',
-    'teleport_to_dungeon', -- teleport to Temis if far from dungeon or in wrong world
-    'walk_to_dungeon',     -- follow waypoints from Temis to dungeon entrance
-    'enter_dungeon',
-    'rush_to_boss',
-    'fight_boss',
+    'run_route',
+    'boss_room',
     'idle',
 }
 

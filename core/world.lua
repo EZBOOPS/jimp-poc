@@ -1,14 +1,18 @@
-local WORLD_OUTSIDE = 4156639130
-local WORLD_DUNGEON = 2974643409
-
-local function get_id()
-    local w = world.get_current_world()
-    return w and w:get_world_id() or nil
-end
-
 local world_module = {}
 
-world_module.is_outside = function() return get_id() == WORLD_OUTSIDE end
-world_module.is_inside  = function() return get_id() == WORLD_DUNGEON end
+local function get_id()
+    local ok, world = pcall(get_current_world)
+    if not ok or not world then return 0 end
+    local ok2, id = pcall(function() return world:get_id() end)
+    if not ok2 then return 0 end
+    return id
+end
+
+local WORLD_DUNGEON  = 1276972031
+local WORLD_TEMERITY = 4156639130
+
+world_module.is_in_dungeon   = function() return get_id() == WORLD_DUNGEON  end
+world_module.is_in_temerity  = function() return get_id() == WORLD_TEMERITY end
+world_module.get_world_id    = function() return get_id() end
 
 return world_module
