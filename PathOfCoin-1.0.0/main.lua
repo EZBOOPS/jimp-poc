@@ -128,6 +128,7 @@ on_update(function()
 end)
 
 on_render(function()
+    settings.update()  -- keep settings fresh for render even if on_update returned early
     -- Click point crosshairs render even when disabled so you can calibrate
     if settings.show_click_points then
         draw_crosshair(settings.social_friend_x,    settings.social_friend_y,    '1. Friend',        color_green(220))
