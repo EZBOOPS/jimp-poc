@@ -39,6 +39,8 @@ local function find_dungeon_entrance(player_pos)
 end
 
 task.shouldExecute = function()
+    -- Keep running if mid-transition so we can detect arrival and set enter_time
+    if tracker.interact_time > 0 then return true end
     if not world.is_outside() then return false end
     if tracker.boss_dead then return false end
 

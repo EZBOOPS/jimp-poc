@@ -1,6 +1,7 @@
 local settings = require 'core.settings'
 local tracker  = require 'core.tracker'
 local world    = require 'core.world'
+local stats    = require 'core.stats'
 
 local RETRY_INTERVAL = 2.0  -- seconds between reset_all_dungeons() retries
 local MAX_RETRIES    = 1
@@ -35,6 +36,7 @@ task.Execute = function()
         task.retries   = task.retries + 1
         tracker.reset_time = now
         task.retry_time    = -1
+        stats.record_reset()
         reset_all_dungeons()
         task.status = string.format('resetting dungeon (attempt %d/%d)', task.retries, MAX_RETRIES)
         console.print(string.format('[GemFarmer] reset_all_dungeons() attempt %d/%d', task.retries, MAX_RETRIES))
