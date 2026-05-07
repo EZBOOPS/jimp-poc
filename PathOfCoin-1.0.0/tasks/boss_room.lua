@@ -256,9 +256,14 @@ task.Execute = function()
                 return
             end
 
-            task.status = string.format('chasing goblin (%.1fm)', goblin_dist)
             set_target(goblin)
-            pathfinder.request_move(goblin_pos)
+            if goblin_dist <= 4.0 then
+                task.status = string.format('attacking goblin (%.1fm)', goblin_dist)
+                interact_object(goblin)
+            else
+                task.status = string.format('chasing goblin (%.1fm)', goblin_dist)
+                pathfinder.request_move(goblin_pos)
+            end
         else
             console.print('[PathOfCoin:boss] All goblins dead — dungeon clear')
             stats.record_goblins()
