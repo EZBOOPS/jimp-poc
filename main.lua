@@ -17,12 +17,12 @@ local function draw_crosshair(cx, cy, label, col)
     graphics.text_2d(label, vec2:new(cx + 14, cy - 8), 14, col)
 end
 
+local GOLD_MAX_RANGE   = 60.0
+local idle_since       = -1
+local IDLE_FIRE_DELAY  = 4.0
 local hang_last_task   = nil
 local hang_last_time   = -1
-local HANG_TIMEOUT     = 120.0  -- seconds on same task before force-firing social
-local GOLD_MAX_RANGE   = 60.0   -- only pick up gold within this range of player
-local idle_since       = -1
-local IDLE_FIRE_DELAY  = 4.0    -- fire social after this many seconds of true idle in dungeon
+local HANG_TIMEOUT     = 20.0
 
 on_update(function()
     settings.update()  -- always update so sliders are live even when disabled
@@ -44,38 +44,41 @@ on_update(function()
 
     if world.is_in_dungeon() then
 
-        -- 4s idle fallback: if social is idle, gold is done, and task manager has nothing to do, fire social
-        if settings.use_social_connector and social.step == 0 and tracker.gold_pickup_done then
+        local gold_in_progress = tracker.boss_chest_done and not tracker.gold_pickup_done
+
+        if settings.use_social_connector and social.step == 0 then
             local cur = task_manager.get_current_task()
-            if cur == nil or cur.name == 'Idle' then
-                if idle_since < 0 then
-                    idle_since = now
-                elseif (now - idle_since) >= IDLE_FIRE_DELAY then
-                    console.print('[PathOfCoin] Idle fallback fired — no active task for ' .. IDLE_FIRE_DELAY .. 's')
+            local cur_name = cur and cur.name or 'Idle'
+
+            -- Watchdog 1: task manager truly idle for 4s (not while gold pickup is running)
+            if cur_name == 'Idle' and not gold_in_progress then
+                if idle_since < 0 then idle_since = now end
+                if (now - idle_since) >= IDLE_FIRE_DELAY then
+                    console.print('[PathOfCoin] Idle watchdog fired after ' .. IDLE_FIRE_DELAY .. 's — starting social')
                     idle_since = -1
                     social.start()
                 end
             else
                 idle_since = -1
             end
-        else
-            idle_since = -1
-        end
 
-        -- Global hang watchdog: only after route_done, if boss/gold phase hangs too long
-        if settings.use_social_connector and social.step == 0 and tracker.route_done then
-            local cur = task_manager.get_current_task()
-            local cur_name = cur and cur.name or 'idle'
-            if cur_name ~= hang_last_task then
-                hang_last_task = cur_name
-                hang_last_time = now
-            elseif hang_last_time > 0 and (now - hang_last_time) >= HANG_TIMEOUT then
-                console.print('[PathOfCoin] Hang watchdog fired on task: ' .. cur_name .. ' — firing social connector')
+            -- Watchdog 2: any active task stuck on same name for 20s
+            if cur_name ~= 'Idle' then
+                if cur_name ~= hang_last_task then
+                    hang_last_task = cur_name
+                    hang_last_time = now
+                elseif (now - hang_last_time) >= HANG_TIMEOUT then
+                    console.print('[PathOfCoin] Hang watchdog: task ' .. cur_name .. ' stuck for ' .. HANG_TIMEOUT .. 's — starting social')
+                    hang_last_task = nil
+                    hang_last_time = -1
+                    social.start()
+                end
+            else
                 hang_last_task = nil
                 hang_last_time = -1
-                social.start()
             end
         else
+            idle_since     = -1
             hang_last_task = nil
             hang_last_time = -1
         end
