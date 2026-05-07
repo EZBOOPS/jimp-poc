@@ -9,7 +9,7 @@ local INTERACT_RANGE     = 5.0
 local GOBLIN_RANGE       = 40.0
 
 -- Per-phase timeouts
-local BOSS_WAIT_TIMEOUT  = 180.0  -- max wait for boss to appear and die
+local BOSS_WAIT_TIMEOUT  = 10.0   -- max wait for boss to appear and die
 local CHEST_SPAWN_WAIT   = 4.0    -- wait after boss dies for chest to spawn
 local CHEST_TIMEOUT      = 30.0   -- max time to find and kill chest after spawn wait
 local CHEST_GONE_CONFIRM = 1.5    -- chest must be absent this long to confirm dead
