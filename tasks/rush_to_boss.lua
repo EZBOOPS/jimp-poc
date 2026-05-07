@@ -5,6 +5,12 @@ local stuck_timeout = require 'tasks.stuck_timeout'
 
 local plugin_label = 'gem_farmer'
 
+local UR_ENABLED_HASH = get_hash('magoogles_universal_rotation_enabled')
+local function set_ur_enabled(state)
+    local el = checkbox:new(state, UR_ENABLED_HASH)
+    el:set(state)
+end
+
 local ENTRY_DELAY         = 1.0    -- seconds after entering before starting navigation
 local WELL_INTERACT_RANGE = 6.0    -- metres — interact with healing well
 local BOSS_POS            = vec3:new(-5.1768, -3.9268, 2.0000)
@@ -38,6 +44,7 @@ tracker.reset_run = function()
     task.nav_sample_pos  = nil
     task.nav_sample_time = -1
     task.phase           = 'strafe'
+    if settings.disable_rotation_rush then set_ur_enabled(true) end
 end
 
 local function is_butcher(actor)
@@ -79,19 +86,24 @@ local function try_interact_well(player_pos)
 end
 
 task.shouldExecute = function()
-    return world.is_inside() and not tracker.boss_found and not tracker.boss_dead
+    return not world.is_outside() and not tracker.boss_found and not tracker.boss_dead
+end
+
+local UR_ENABLED_HASH = get_hash('magoogles_universal_rotation_enabled')
+local function set_ur_enabled(state)
+    local el = checkbox:new(state, UR_ENABLED_HASH)
+    el:set(state)
 end
 
 local function suppress_rotation()
-    if settings.disable_rotation_rush and UniversalRotationPlugin then
-        UniversalRotationPlugin.disable()
+    if settings.disable_rotation_rush then
+        set_ur_enabled(false)
+        _G.EXTERNAL_ROTATION_TARGET = nil
     end
 end
 
 local function restore_rotation()
-    if UniversalRotationPlugin then
-        UniversalRotationPlugin.enable()
-    end
+    set_ur_enabled(true)
 end
 
 task.Execute = function()
@@ -101,6 +113,7 @@ task.Execute = function()
     end
 
     suppress_rotation()
+    if settings.ur_boss_only then set_ur_enabled(false) end
 
     local now = get_time_since_inject()
 
@@ -123,6 +136,8 @@ task.Execute = function()
     if tracker.enter_time > 0 and (now - tracker.enter_time) < ENTRY_DELAY then
         task.status = 'waiting for dungeon load'
         return
+    elseif tracker.enter_time < 0 then
+        tracker.enter_time = now  -- already inside but enter_dungeon missed the transition
     end
 
     local player = get_local_player()
