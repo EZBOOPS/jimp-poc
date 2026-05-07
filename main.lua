@@ -18,6 +18,7 @@ local function draw_crosshair(cx, cy, label, col)
 end
 
 local GOLD_MAX_RANGE   = 60.0
+local gold_skip        = {}   -- set of position keys for gold pieces to skip
 local idle_since       = -1
 local IDLE_FIRE_DELAY  = 4.0
 local hang_last_task   = nil
@@ -91,38 +92,50 @@ on_update(function()
             tracker.boss_chest_time = now
         end
 
+        -- Gold pickup overall timeout: if it takes more than 20s just move on
+        if tracker.boss_chest_done and not tracker.gold_pickup_done
+           and tracker.boss_chest_time > 0 and (now - tracker.boss_chest_time) >= 23.0 then
+            console.print('[PathOfCoin] Gold pickup timeout — skipping to social')
+            tracker.gold_pickup_done = true
+            tracker.gold_stuck_pos   = nil
+            tracker.gold_stuck_time  = -1
+            gold_skip                = {}
+        end
+
         -- Pick up gold on the floor before firing social connector (wait 3s for loot to settle)
         if tracker.boss_chest_done and not tracker.gold_pickup_done
            and (now - tracker.boss_chest_time) >= 3.0 then
             local player = get_local_player()
             if player then
                 local player_pos = player:get_position()
-                local closest_gold, closest_dist = nil, math.huge
+                local closest_gold, closest_dist, closest_key = nil, math.huge, nil
                 local ok, items = pcall(function() return actors_manager:get_all_items() end)
                 if ok and type(items) == 'table' then
                     for _, item in ipairs(items) do
                         local is_gold = false
                         pcall(function() is_gold = loot_manager.is_gold(item) end)
                         if is_gold then
-                            local dist = item:get_position():dist_to(player_pos)
-                            if dist <= GOLD_MAX_RANGE and dist < closest_dist then
-                                closest_gold = item
-                                closest_dist = dist
+                            local ipos = item:get_position()
+                            local key  = string.format('%.1f_%.1f', ipos.x, ipos.y)
+                            if not gold_skip[key] then
+                                local dist = ipos:dist_to(player_pos)
+                                if dist <= GOLD_MAX_RANGE and dist < closest_dist then
+                                    closest_gold = item
+                                    closest_dist = dist
+                                    closest_key  = key
+                                end
                             end
                         end
                     end
                 end
 
                 if closest_gold then
-                    local gold_pos = closest_gold:get_position()
-
-                    -- Stuck detection: skip this piece after 3s
-                    local stuck_key = string.format('%.1f_%.1f', gold_pos.x, gold_pos.y)
-                    if tracker.gold_stuck_pos ~= stuck_key then
-                        tracker.gold_stuck_pos  = stuck_key
+                    if tracker.gold_stuck_pos ~= closest_key then
+                        tracker.gold_stuck_pos  = closest_key
                         tracker.gold_stuck_time = now
                     elseif (now - tracker.gold_stuck_time) >= 3.0 then
-                        console.print('[PathOfCoin] Gold stuck timeout — skipping to next')
+                        console.print('[PathOfCoin] Gold stuck — blacklisting ' .. closest_key)
+                        gold_skip[closest_key]  = true
                         tracker.gold_stuck_pos  = nil
                         tracker.gold_stuck_time = -1
                         closest_gold = nil
@@ -132,12 +145,15 @@ on_update(function()
                         if closest_dist <= 2.0 then
                             interact_object(closest_gold)
                         else
-                            pathfinder.request_move(gold_pos)
+                            pathfinder.request_move(closest_gold:get_position())
                         end
                     end
                 else
                     tracker.gold_pickup_done = true
-                    console.print('[PathOfCoin] Gold pickup done — firing social connector')
+                    tracker.gold_stuck_pos   = nil
+                    tracker.gold_stuck_time  = -1
+                    gold_skip                = {}
+                    console.print('[PathOfCoin] Gold pickup done')
                 end
             end
         end
