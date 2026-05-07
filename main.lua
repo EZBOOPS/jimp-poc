@@ -4,6 +4,7 @@ local task_manager = require 'core.task_manager'
 local tracker      = require 'core.tracker'
 local external     = require 'core.external'
 local stuck        = require 'tasks.stuck_timeout'
+local stats        = require 'core.stats'
 local world        = require 'core.world'
 
 local BOSS_POS = vec3:new(-5.1768, -3.9268, 2.0000)
@@ -131,6 +132,11 @@ on_render_menu(function()
     end
 end)
 
-on_render(render_pulse)
+on_render(function()
+    render_pulse()
+    if local_player and settings.enabled and settings.get_keybind_state() then
+        stats.render()
+    end
+end)
 
 GemFarmerPlugin = external

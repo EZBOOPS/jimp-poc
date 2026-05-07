@@ -1,6 +1,7 @@
 local settings     = require 'core.settings'
 local tracker      = require 'core.tracker'
 local world        = require 'core.world'
+local stats        = require 'core.stats'
 
 local plugin_label = 'gem_farmer'
 local STAY_RANGE   = 15.0
@@ -46,6 +47,7 @@ task.Execute = function()
         if boss:is_dead() then
             tracker.boss_dead       = true
             tracker.loot_start_time = get_time_since_inject()
+            stats.record_kill(tracker.enter_time)
             task.status = 'boss dead — waiting for loot'
             console.print('[GemFarmer] Boss killed — waiting ' .. settings.loot_wait .. 's for loot')
             return
@@ -68,6 +70,7 @@ task.Execute = function()
         if tracker.boss_last_pos and player_pos:dist_to(tracker.boss_last_pos) < settings.boss_range then
             tracker.boss_dead       = true
             tracker.loot_start_time = get_time_since_inject()
+            stats.record_kill(tracker.enter_time)
             task.status = 'boss gone — waiting for loot'
             console.print('[GemFarmer] Boss actor gone — assuming dead')
         else
