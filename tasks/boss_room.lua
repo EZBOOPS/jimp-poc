@@ -27,6 +27,7 @@ tracker.reset_run = function()
     _orig_reset()
     tracker.boss_dead         = false
     tracker.boss_chest_done   = false
+    tracker.boss_chest_time   = -1
     tracker.boss_died_time    = -1
     tracker.goblins_phase     = false
     task.enter_time           = -1

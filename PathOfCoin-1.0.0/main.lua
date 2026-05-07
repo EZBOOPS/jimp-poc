@@ -20,6 +20,9 @@ end
 local hang_last_task   = nil
 local hang_last_time   = -1
 local HANG_TIMEOUT     = 120.0  -- seconds on same task before force-firing social
+local GOLD_MAX_RANGE   = 60.0   -- only pick up gold within this range of player
+local idle_since       = -1
+local IDLE_FIRE_DELAY  = 4.0    -- fire social after this many seconds of true idle in dungeon
 
 on_update(function()
     settings.update()  -- always update so sliders are live even when disabled
@@ -41,6 +44,24 @@ on_update(function()
 
     if world.is_in_dungeon() then
 
+        -- 4s idle fallback: if social is idle, gold is done, and task manager has nothing to do, fire social
+        if settings.use_social_connector and social.step == 0 and tracker.gold_pickup_done then
+            local cur = task_manager.get_current_task()
+            if cur == nil or cur.name == 'Idle' then
+                if idle_since < 0 then
+                    idle_since = now
+                elseif (now - idle_since) >= IDLE_FIRE_DELAY then
+                    console.print('[PathOfCoin] Idle fallback fired — no active task for ' .. IDLE_FIRE_DELAY .. 's')
+                    idle_since = -1
+                    social.start()
+                end
+            else
+                idle_since = -1
+            end
+        else
+            idle_since = -1
+        end
+
         -- Global hang watchdog: only after route_done, if boss/gold phase hangs too long
         if settings.use_social_connector and social.step == 0 and tracker.route_done then
             local cur = task_manager.get_current_task()
@@ -61,8 +82,14 @@ on_update(function()
 
         task_manager.execute_tasks()
 
-        -- Pick up gold on the floor before firing social connector
-        if tracker.boss_chest_done and not tracker.gold_pickup_done then
+        -- Track when boss_chest_done first became true so gold has time to land
+        if tracker.boss_chest_done and tracker.boss_chest_time < 0 then
+            tracker.boss_chest_time = now
+        end
+
+        -- Pick up gold on the floor before firing social connector (wait 3s for loot to settle)
+        if tracker.boss_chest_done and not tracker.gold_pickup_done
+           and (now - tracker.boss_chest_time) >= 3.0 then
             local player = get_local_player()
             if player then
                 local player_pos = player:get_position()
@@ -74,7 +101,7 @@ on_update(function()
                         pcall(function() is_gold = loot_manager.is_gold(item) end)
                         if is_gold then
                             local dist = item:get_position():dist_to(player_pos)
-                            if dist < closest_dist then
+                            if dist <= GOLD_MAX_RANGE and dist < closest_dist then
                                 closest_gold = item
                                 closest_dist = dist
                             end
