@@ -1,0 +1,38 @@
+local gui      = require 'gui'
+local settings = {}
+
+settings.update = function()
+    settings.enabled              = gui.elements.main_toggle:get()
+    settings.rush_mode            = gui.elements.rush_mode:get()
+    settings.batmobile_rush       = gui.elements.batmobile_rush:get()
+    settings.use_teleport         = gui.elements.use_teleport:get()
+    settings.open_chests          = gui.elements.open_chests:get()
+    settings.loot_wait            = gui.elements.loot_wait:get()
+    settings.reset_wait           = gui.elements.reset_wait:get()
+    settings.chest_range          = gui.elements.chest_range:get()
+    settings.use_social_connector = gui.elements.use_social_connector:get()
+    settings.use_alfred           = gui.elements.use_alfred:get()
+    settings.clear_wait            = gui.elements.clear_wait:get()
+    settings.social_step_delay     = gui.elements.social_step_delay:get()
+    settings.social_join_wait      = gui.elements.social_join_wait:get()
+    settings.social_transfer_wait  = gui.elements.social_transfer_wait:get()
+    settings.social_leave_wait     = gui.elements.social_leave_wait:get()
+    settings.social_arrival_timeout    = gui.elements.social_arrival_timeout:get()
+    settings.social_post_teleport_wait = gui.elements.social_post_teleport_wait:get()
+    settings.social_watchdog           = gui.elements.social_watchdog:get()
+    settings.show_click_points    = gui.elements.show_click_points:get()
+    settings.social_friend_x      = gui.elements.social_friend_x:get()
+    settings.social_friend_y      = gui.elements.social_friend_y:get()
+    settings.social_join_x        = gui.elements.social_join_x:get()
+    settings.social_join_y        = gui.elements.social_join_y:get()
+    settings.social_transfer_x    = gui.elements.social_transfer_x:get()
+    settings.social_transfer_y    = gui.elements.social_transfer_y:get()
+    settings.social_leave_x       = gui.elements.social_leave_x:get()
+    settings.social_leave_y       = gui.elements.social_leave_y:get()
+    settings.social_accept_x      = gui.elements.social_accept_x:get()
+    settings.social_accept_y      = gui.elements.social_accept_y:get()
+    settings.social_teleport_x    = gui.elements.social_teleport_x:get()
+    settings.social_teleport_y    = gui.elements.social_teleport_y:get()
+end
+
+return settings

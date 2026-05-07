@@ -1,0 +1,175 @@
+local gui             = require 'gui'
+local settings        = require 'core.settings'
+local task_manager    = require 'core.task_manager'
+local tracker         = require 'core.tracker'
+local world           = require 'core.world'
+local social          = require 'tasks.social_connector'
+local stats           = require 'core.stats'
+
+local plugin_version = gui.plugin_version
+console.print('Lua Plugin - Path of Coin - v' .. plugin_version)
+
+local function draw_crosshair(cx, cy, label, col)
+    local arm = 12
+    graphics.line(vec2:new(cx - arm, cy), vec2:new(cx + arm, cy), col, 2)
+    graphics.line(vec2:new(cx, cy - arm), vec2:new(cx, cy + arm), col, 2)
+    graphics.circle_2d(vec2:new(cx, cy), 5, col, 1)
+    graphics.text_2d(label, vec2:new(cx + 14, cy - 8), 14, col)
+end
+
+on_update(function()
+    settings.update()  -- always update so sliders are live even when disabled
+    if not get_local_player() then return end
+    if not settings.enabled then return end
+
+    local now = get_time_since_inject()
+
+    -- Pause everything while Alfred is actively running
+    if settings.use_alfred then
+        local alfred = _G.AlfredTheButlerPlugin
+        if alfred and type(alfred.get_status) == 'function' then
+            local ok, s = pcall(alfred.get_status)
+            if ok and type(s) == 'table' and s.trigger_tasks then
+                return
+            end
+        end
+    end
+
+    if world.is_in_dungeon() then
+        -- If we're running the route but never confirmed we left the party,
+        -- assume we're in someone else's instance — fire leave party sequence
+        if settings.use_social_connector and not tracker.left_party and not tracker.route_done then
+            if tracker.enter_time < 0 then tracker.enter_time = now end
+            local grace = 15.0
+            if (now - tracker.enter_time) >= grace and social.step == 0 then
+                console.print('[PathOfCoin] In dungeon but party not left — firing leave party')
+                social.start()
+            end
+        end
+
+        task_manager.execute_tasks()
+
+        -- Pick up gold on the floor before firing social connector
+        if tracker.boss_chest_done and not tracker.gold_pickup_done then
+            local player = get_local_player()
+            if player then
+                local player_pos = player:get_position()
+                local closest_gold, closest_dist = nil, math.huge
+                local ok, items = pcall(function() return actors_manager:get_all_items() end)
+                if ok and type(items) == 'table' then
+                    for _, item in ipairs(items) do
+                        local is_gold = false
+                        pcall(function() is_gold = loot_manager.is_gold(item) end)
+                        if is_gold then
+                            local dist = item:get_position():dist_to(player_pos)
+                            if dist < closest_dist then
+                                closest_gold = item
+                                closest_dist = dist
+                            end
+                        end
+                    end
+                end
+
+                if closest_gold then
+                    local gold_pos = closest_gold:get_position()
+
+                    -- Stuck detection: skip this piece after 3s
+                    local stuck_key = string.format('%.1f_%.1f', gold_pos.x, gold_pos.y)
+                    if tracker.gold_stuck_pos ~= stuck_key then
+                        tracker.gold_stuck_pos  = stuck_key
+                        tracker.gold_stuck_time = now
+                    elseif (now - tracker.gold_stuck_time) >= 3.0 then
+                        console.print('[PathOfCoin] Gold stuck timeout — skipping to next')
+                        tracker.gold_stuck_pos  = nil
+                        tracker.gold_stuck_time = -1
+                        closest_gold = nil
+                    end
+
+                    if closest_gold then
+                        if closest_dist <= 2.0 then
+                            interact_object(closest_gold)
+                        else
+                            pathfinder.request_move(gold_pos)
+                        end
+                    end
+                else
+                    tracker.gold_pickup_done = true
+                    console.print('[PathOfCoin] Gold pickup done — firing social connector')
+                end
+            end
+        end
+
+        -- Fire social connector as soon as gold pickup is done
+        if settings.use_social_connector then
+            if tracker.boss_chest_done and tracker.gold_pickup_done and social.step == 0 then
+                social.start()
+            end
+            if social.step ~= nil and social.step > 0 then social.Execute() end
+        end
+    else
+        if settings.use_social_connector then
+            -- If in Temerity and Alfred is not running, kick off the social connector
+            if world.is_in_temerity() and social.step == 0 then
+                local alfred = _G.AlfredTheButlerPlugin
+                local alfred_busy = false
+                if alfred and type(alfred.get_status) == 'function' then
+                    local ok, s = pcall(alfred.get_status)
+                    if ok and type(s) == 'table' then alfred_busy = s.trigger_tasks end
+                end
+                if not alfred_busy then
+                    social.start()
+                end
+            end
+            if social.step ~= nil and social.step > 0 then
+                social.Execute()
+            end
+        end
+    end
+end)
+
+on_render(function()
+    -- Click point crosshairs render even when disabled so you can calibrate
+    if settings.show_click_points then
+        draw_crosshair(settings.social_friend_x,    settings.social_friend_y,    '1. Friend',        color_green(220))
+        draw_crosshair(settings.social_join_x,      settings.social_join_y,      '2. Join Party',    color_cyan(220))
+        draw_crosshair(settings.social_transfer_x,  settings.social_transfer_y,  '3. Transfer Now',  color_yellow(220))
+        draw_crosshair(settings.social_leave_x,     settings.social_leave_y,     '4. Leave Party',   color_orange(220))
+        draw_crosshair(settings.social_accept_x,    settings.social_accept_y,    '5. Accept',        color_red(220))
+        draw_crosshair(settings.social_teleport_x,  settings.social_teleport_y,  '6. Teleport (Tem)', color_white(220))
+    end
+
+    -- Stats overlay always visible when enabled
+    if settings.enabled then
+        stats.render()
+    end
+
+    if not settings.enabled then return end
+
+    -- Task HUD
+    local task = task_manager.get_current_task()
+    if task and world.is_in_dungeon() then
+        local msg = 'Path of Coin: ' .. task.name
+        if task.status and task.status ~= '' then
+            msg = msg .. ' (' .. task.status .. ')'
+        end
+        local x = get_screen_width() / 2 - (#msg * 5.5)
+        graphics.text_2d(msg, vec2:new(x, 80), 20, color_white(255))
+    end
+
+    -- Recent click markers
+    local clicks, fade = social.get_recent_clicks()
+    local now = get_time_since_inject()
+    for _, c in ipairs(clicks) do
+        local age   = now - c.t
+        local alpha = math.max(0, math.min(255, math.floor(255 * (1 - age / fade))))
+        local col   = color_yellow(alpha)
+        graphics.circle_2d(vec2:new(c.x, c.y), 14, col, 2)
+        graphics.circle_2d(vec2:new(c.x, c.y),  3, col, 2)
+        graphics.text_2d(string.format('%s (%.1fs)', c.label, age),
+            vec2:new(c.x + 18, c.y + 10), 13, col)
+    end
+end)
+
+on_render_menu(function()
+    gui.render(task_manager.get_current_task(), tracker)
+end)
