@@ -62,8 +62,9 @@ on_update(function()
                 idle_since = -1
             end
 
-            -- Watchdog 2: any active task stuck on same name for 20s
-            if cur_name ~= 'Idle' then
+            -- Watchdog 2: task stuck on same name for 20s, but ONLY after boss/goblins are done
+            -- boss_room and run_route are legitimate long-running tasks, don't interrupt them
+            if cur_name ~= 'Idle' and tracker.boss_chest_done and tracker.gold_pickup_done then
                 if cur_name ~= hang_last_task then
                     hang_last_task = cur_name
                     hang_last_time = now
