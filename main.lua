@@ -37,8 +37,18 @@ on_update(function()
         local alfred = _G.AlfredTheButlerPlugin
         if alfred and type(alfred.get_status) == 'function' then
             local ok, s = pcall(alfred.get_status)
-            if ok and type(s) == 'table' and s.trigger_tasks then
-                return
+            if ok and type(s) == 'table' then
+                -- If Alfred needs to run (seals/inventory full) and isn't already triggered, fire it
+                if s.enabled and (s.talisman_full or s.need_trigger) and not s.trigger_tasks then
+                    if type(alfred.trigger_tasks) == 'function' then
+                        alfred.trigger_tasks('PathOfCoin')
+                        console.print('[PathOfCoin] Triggered Alfred — seals/inventory full')
+                    end
+                end
+                -- Pause PathOfCoin while Alfred is doing its town run
+                if s.trigger_tasks then
+                    return
+                end
             end
         end
     end
