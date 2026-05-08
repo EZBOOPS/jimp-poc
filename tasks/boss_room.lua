@@ -124,6 +124,7 @@ end
 
 task.shouldExecute = function()
     if not world.is_in_dungeon() then return false end
+    if settings.use_social_connector and not tracker.left_party then return false end
     if not tracker.route_done then return false end
     if tracker.boss_chest_done then return false end
     return true

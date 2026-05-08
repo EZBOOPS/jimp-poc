@@ -154,7 +154,10 @@ local function find_chest(player_pos, range)
 end
 
 task.shouldExecute = function()
-    return world.is_in_dungeon() and not tracker.route_done
+    if not world.is_in_dungeon() then return false end
+    if tracker.route_done then return false end
+    if settings.use_social_connector and not tracker.left_party then return false end
+    return true
 end
 
 task.Execute = function()
